@@ -37,9 +37,32 @@ import {
 } from "@ionic/vue";
 import { onMounted, ref } from "vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Directory, Filesystem} from '@capacitor/filesystem'
 import { toastController } from "@ionic/vue"
 
 const fotoSrc = ref<string | null>(null);
+
+async function salvarImagem(dataUrl: string) {
+  const base64Data = dataUrl.split(',')[1]
+
+  if (!base64Data) {
+    throw new Error('formato de imagem inválido')
+  }
+
+  await Filesystem.writeFile({
+    path: `foto_${Date.now()}.jpeg`,
+    data: base64Data,
+    directory: Directory.Data
+  })
+}
+
+async function processarFoto(dataUrl: string | undefined) {
+  if (!dataUrl) return
+
+await salvarImagem(dataUrl)
+fotoSrc.value = dataUrl
+}
+
 async function tirarFoto() {
   try {
     const foto = await Camera.getPhoto({
@@ -47,21 +70,30 @@ async function tirarFoto() {
       source: CameraSource.Prompt,
       quality: 90,
       width: 800,
-    });
+    })
+    await processarFoto(foto.dataUrl)
      
     fotoSrc.value = foto.dataUrl ?? null;
   } catch (err: unknown) {
     // Usuário cancelou ou negou permissão
     if (String(err).includes("cancelled")) return;
-    await mostrarToast("Não foi possível acessar a câmera", "danger");
+    await mostrarToast("Não foi possível acessar a câmera", "danger")
   }
 }
 async function abrirGaleria() {
+  try {
   const foto = await Camera.getPhoto({
     resultType: CameraResultType.DataUrl,
     source: CameraSource.Photos,
-  });
+  })
+  await processarFoto(foto.dataUrl)
   fotoSrc.value = foto.dataUrl ?? null;
+}
+catch (err: unknown) {
+  // Usuário cancelou ou negou permissão
+  if (String(err).includes("cancelled")) return
+  await mostrarToast("Não foi possível acessar a galeria", "danger")
+}
 }
 
 async function mostrarToast(message: string, color: string = 'primary', duration = 2000) {

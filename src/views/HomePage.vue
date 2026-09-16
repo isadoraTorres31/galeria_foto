@@ -4,13 +4,13 @@
       <ion-toolbar>
         <ion-title>Galeria</ion-title>
         <ion-buttons slot="end">
-  <ion-button router-link="/sobre">
-    <ion-icon slot="icon-only" :icon="informationCircleOutline" />
-  </ion-button>
-  <ion-button @click="sair">
-    <ion-icon slot="icon-only" :icon="logOutOutline" />
-  </ion-button>
-</ion-buttons>
+          <ion-button router-link="/sobre">
+            <ion-icon slot="icon-only" :icon="informationCircleOutline" />
+          </ion-button>
+          <ion-button @click="sair">
+            <ion-icon slot="icon-only" :icon="logOutOutline" />
+          </ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
@@ -21,8 +21,20 @@
           <ion-col size="6" v-for="foto in fotos" :key="foto.id">
             <ion-card class="foto-card">
               <img :src="foto.src" />
+
               <ion-button
-                class="botao-remover"
+                class="botao-acao botao-compartilhar"
+                color="primary"
+                size="small"
+                fill="solid"
+                shape="round"
+                @click="compartilharFoto(foto)"
+              >
+                <ion-icon slot="icon-only" :icon="shareSocial" />
+              </ion-button>
+
+              <ion-button
+                class="botao-acao botao-remover"
                 color="danger"
                 size="small"
                 fill="solid"
@@ -70,11 +82,22 @@ import {
   alertController,
   toastController,
 } from "@ionic/vue";
-import { logOutOutline, add, imagesOutline, camera, images, trash, informationCircleOutline  } from "ionicons/icons";
+import {
+  logOutOutline,
+  add,
+  imagesOutline,
+  camera,
+  images,
+  trash,
+  informationCircleOutline,
+  shareSocial,
+} from "ionicons/icons";
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { logout, usuarioAtual } from "@/services/auth";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Share } from "@capacitor/share";
+import { Filesystem, Directory } from "@capacitor/filesystem";
 import { obterFotos, adicionarFoto, removerFoto, Foto } from "@/services/fotos";
 
 const router = useRouter();
@@ -148,6 +171,34 @@ async function verificarPermissao(): Promise<boolean> {
   return true;
 }
 
+// A foto é guardada como base64 (DataUrl), mas o plugin Share só compartilha
+// arquivos reais. Por isso, gravamos a imagem em um arquivo temporário no
+// cache do dispositivo e compartilhamos o caminho desse arquivo.
+async function compartilharFoto(foto: Foto) {
+  try {
+    const base64 = foto.src.split(",")[1];
+    const nomeArquivo = `foto_${foto.id}.jpeg`;
+
+    const arquivo = await Filesystem.writeFile({
+      path: nomeArquivo,
+      data: base64,
+      directory: Directory.Cache,
+    });
+
+    await Share.share({
+      title: "Compartilhar foto",
+      text: "Foto da minha galeria",
+      files: [arquivo.uri],
+      dialogTitle: "Compartilhar com",
+    });
+  } catch (err: unknown) {
+    // Usuário fechou a folha de compartilhamento, não é erro real
+    const mensagem = String(err).toLowerCase();
+    if (mensagem.includes("cancel") || mensagem.includes("abort")) return;
+    await mostrarToast("Não foi possível compartilhar a foto.");
+  }
+}
+
 async function confirmarRemocao(id: string) {
   const alerta = await alertController.create({
     header: "Remover foto",
@@ -178,13 +229,18 @@ async function confirmarRemocao(id: string) {
   object-fit: cover;
   display: block;
 }
-.botao-remover {
+.botao-acao {
   position: absolute;
   top: 6px;
-  right: 6px;
   --padding-start: 8px;
   --padding-end: 8px;
   margin: 0;
+}
+.botao-compartilhar {
+  left: 6px;
+}
+.botao-remover {
+  right: 6px;
 }
 .vazio {
   text-align: center;
