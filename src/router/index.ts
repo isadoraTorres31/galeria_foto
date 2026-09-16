@@ -33,12 +33,12 @@ const router = createRouter({
 })
 
 // Guarda de rota: bloqueia acesso a telas que exigem login
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to) => {
   if (to.meta.requerAuth && !estaAutenticado()) {
-    next('/login');
-  } else {
-    next();
+    return '/login';
   }
+
+  return true;
 });
 
 export default router
